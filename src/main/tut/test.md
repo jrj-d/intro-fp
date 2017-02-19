@@ -138,6 +138,8 @@ incr(Some(4.0): Option[Double])
 
 ## Why type classes?
 
+Let's work through an example.
+
 Common question in Scala:
 
 >I have a type hierarchy … how do I declare a supertype method that returns the “current” type?
@@ -174,18 +176,18 @@ val b = a.renamed("Bob")
 
 ## Oops
 
-```tut:silent
-case class Kitty(name: String) extends Pet {
-  def renamed(newName: String): Fish = new Fish(newName, 42) // oops
-}
+```tut:fail
+def doctor[A <: Pet](a: A): A = a.renamed(a.name + ", PhD")
 ```
 
 ---
 
 ## Oops #2
 
-```tut:fail
-def doctor[A <: Pet](a: A): A = a.renamed(a.name + ", PhD")
+```tut:silent
+case class Kitty(name: String) extends Pet {
+  def renamed(newName: String): Fish = new Fish(newName, 42) // oops
+}
 ```
 
 ---
@@ -302,8 +304,7 @@ val b = a.renamed("Bob")
 ## "Doctor" works
 
 ```tut
-def doctor[A <: Pet : Rename](a: A): A =
-   a.renamed(a.name + ", PhD")
+def doctor[A <: Pet : Rename](a: A): A = a.renamed(a.name + ", PhD")
 
 doctor(Fish("Jimmy", 42))
 ```
@@ -316,6 +317,50 @@ Impossible to create a `Kitty` that returns a `Fish`, or do the `Mammal trick`.
 
 ---
 
-TODO: sum up
+## Summary
 
-TODO: say where it is used
+|Solution|Return "current" type statically?|Can user mess up?|Method in signature|
+|:-------|:-------------------:|:---------------:|:-----------------:|
+|Subtyping|no|no|yes|
+|F-bounded polymorphism|yes|yes|yes|
+|Type class|yes|no|no|
+
+---
+
+## Type class degrades readability
+
+```tut:silent
+sealed trait Option[+A]
+case class Some[A](get: A) extends Option[A]
+case object None extends Option[Nothing]
+
+trait Functor[F[_]] {
+  def map[A, B](fa: F[A])(f: A => B): F[B]
+}
+
+implicit val functorForOption = new Functor[Option] {
+  def map[A, B](option: Option[A])(f: A => B): Option[B] = option match {
+    case Some(a) => Some(f(a))
+    case None => None
+  }
+}
+```
+
+How do you know `Option` is a `Functor`?
+* Not stated in scaladoc
+* Look for the `Functor` implementation
+
+---
+
+## Libraries
+
+|Library|Method|
+|:------|:-----|
+|scala.collection|F-bounded polymorphism|
+|cats|Type class|
+|scalaz|Type class
+
+---
+
+TODO: add links
+TODO: search F-bounded vs ad hoc
