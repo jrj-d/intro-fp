@@ -43,7 +43,7 @@ Monads, functors and other functional are all implemented as type classes, becau
 * Parametric polymorphism: when code is written without mention of any specific type and thus can be used transparently with any number of new types.
 * Subtyping: when a name denotes instances of many different classes related by some common superclass.
 
----
+----
 
 ## Subtyping
 
@@ -60,7 +60,7 @@ def sayHello(animal: Animal): String = s"Hello ${animal.name}"
 sayHello(Fish("Nemo"))
 ```
 
----
+----
 
 ## Parametric polymorphism
 
@@ -72,7 +72,7 @@ def sayHello[A](a: A): String = s"Hello ${a.toString}"
 sayHello(Fish("Nemo"))
 ```
 
----
+----
 
 ## Ad hoc polymorphism
 
@@ -83,7 +83,7 @@ def add(x: String, y: String): String = x + y
 def add(x: Double, y: Double): Double = x + y
 ```
 
----
+----
 
 ## Ad hoc polymorphism
 
@@ -146,7 +146,7 @@ Common question in Scala:
 
 Largely based on this [blog post](http://tpolecat.github.io/2015/04/29/f-bounds.html).
 
----
+----
 
 ## Reformulation
 
@@ -172,7 +172,7 @@ val a = Fish("Jimmy", 2)
 val b = a.renamed("Bob")
 ```
 
----
+----
 
 ## Oops
 
@@ -180,7 +180,7 @@ val b = a.renamed("Bob")
 def doctor[A <: Pet](a: A): A = a.renamed(a.name + ", PhD")
 ```
 
----
+----
 
 ## Oops #2
 
@@ -205,7 +205,7 @@ case class Fish(name: String, age: Int) extends Pet[Fish] {
 }
 ```
 
----
+----
 
 ## First victory
 
@@ -215,7 +215,7 @@ val a = Fish("Jimmy", 2)
 doctor(a)
 ```
 
----
+----
 
 ## Oops
 
@@ -225,7 +225,7 @@ case class Kitty(name: String) extends Pet[Fish] { // oops
 }
 ```
 
----
+----
 
 ## A solution
 
@@ -242,7 +242,7 @@ case class Kitty(name: String) extends Pet[Fish] {
 }
 ```
 
----
+----
 
 ## Oops #2
 
@@ -287,7 +287,7 @@ object Demo {
 }
 ```
 
----
+----
 
 ## Basic usage
 
@@ -299,7 +299,7 @@ val a = Fish("Jimmy", 42)
 val b = a.renamed("Bob")
 ```
 
----
+----
 
 ## "Doctor" works
 
@@ -309,7 +309,7 @@ def doctor[A <: Pet : Rename](a: A): A = a.renamed(a.name + ", PhD")
 doctor(Fish("Jimmy", 42))
 ```
 
----
+----
 
 ## No type mess-up
 
@@ -325,7 +325,7 @@ Impossible to create a `Kitty` that returns a `Fish`, or do the `Mammal trick`.
 |F-bounded polymorphism|yes|yes|yes|
 |Type class|yes|no|no|
 
----
+----
 
 ## Type class degrades readability
 
@@ -350,7 +350,7 @@ How do you know `Option` is a `Functor`?
 * Not stated in scaladoc
 * Look for the `Functor` implementation
 
----
+----
 
 ## Libraries
 
