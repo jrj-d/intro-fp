@@ -1,3 +1,12 @@
+<style>
+.reveal {
+  font-size: 32px;
+}
+.reveal pre {
+  width: 100%;
+}
+</style>
+
 # Introduction to type classes
 
 ---
