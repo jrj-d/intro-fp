@@ -25,7 +25,8 @@ when presenting functional programming some day.
 
 Monads, functors and other functional are all implemented as type classes, because of:
 * Haskell predominance on the FP scene,
-* expressiveness and
+* expressiveness,
+* pimp-up-my-class pattern,
 * static guarantees
 
 ---
