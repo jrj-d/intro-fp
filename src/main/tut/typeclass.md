@@ -23,7 +23,7 @@ when presenting functional programming some day.
 
 ## Type classes & FP
 
-Monads, functors and other functional are all implemented as type classes, because of:
+Monads, functors and other functional concepts are all implemented as type classes, because of:
 * Haskell predominance on the FP scene,
 * expressiveness,
 * pimp-my-class pattern,
@@ -41,9 +41,9 @@ Monads, functors and other functional are all implemented as type classes, becau
 
 > Polymorphism is the provision of a single interface to entities of different types.
 
-* Ad hoc polymorphism: when a function denotes different and potentially heterogeneous implementations depending on a limited range of individually specified types and combinations.
-* Parametric polymorphism: when code is written without mention of any specific type and thus can be used transparently with any number of new types.
 * Subtyping: when a name denotes instances of many different classes related by some common superclass.
+* Parametric polymorphism: when code is written without mention of any specific type and thus can be used transparently with any number of new types.
+* Ad hoc polymorphism: when a function denotes different and potentially heterogeneous implementations depending on a limited range of individually specified types and combinations.
 
 ----
 
@@ -104,7 +104,117 @@ add(3, 4)
 add(3.0, 4.0)
 ```
 
-Type class = parametric polymorphism (generics) with constraints!
+---
+
+## (Almost) a real world example
+
+```tut
+def sum(ns: List[Int]): Int = ns.fold(0)(_ + _)
+def all(bs: List[Boolean]): Boolean = bs.fold(true)(_ && _)
+def concat[A](ss: List[List[A]]): List[A] = ss.fold(List.empty[A])(_ ::: _)
+```
+
+Let's factorize the commonality.
+
+---
+
+## First idea: subtyping
+
+Bad idea because:
+* no reason to have a common supertype with additive capabilities for `Int`, `Boolean` and `List[A]`
+* cannot rewrite `Int`!
+```scala
+trait Int extends Addable
+```
+
+---
+
+## Second idea: parametric polymorphism (generics)
+
+```scala
+def add[A](x: A, y: A): A = ??? // same code for Int, Boolean and List[A]
+```
+Impossible!
+
+---
+
+## Third idea: ad hoc polymorphism
+
+This is the one.
+
+---
+
+## Pimp my class pattern
+
+```tut:silent
+abstract class Addable[A](val value: A) {
+  def add(x: A): A
+}
+
+implicit def intToAddable(i: Int) = new Addable(i) {
+  def add(x: Int): Int = value + x
+}
+
+implicit def listToAddable[A](l: List[A]) = new Addable(l) {
+  def add(x: List[A]): List[A] = value ++ x
+}
+```
+```tut
+4.add(3)
+List("foo", "bar").add(List("yep"))
+```
+
+----
+
+## Implementation of generic sum
+
+```scala
+def genericSum[A](l: List[A]): A = l.fold(???)((a, b) => a.add(b))
+```
+
+---
+
+## Type class
+
+```tut:silent
+trait Addable[A] { // type class
+  def add(a: A, b: A): A
+  def zero: A
+}
+
+implicit val AddableForInt = new Addable[Int] { // instance
+  def add(a: Int, b: Int): Int = a + b
+  def zero: Int = 0
+}
+
+implicit def addableForList[A] = new Addable[List[A]] { // instance
+  def add(a: List[A], b: List[A]): List[A] = a ++ b
+  def zero: List[A] = List.empty[A]
+}
+```
+
+----
+
+```tut
+def genericSum[A](l: List[A])(implicit ev: Addable[A]): A = l.fold(ev.zero)(ev.add)
+genericSum(List(List("foo", "bar"), List("yep")))
+genericSum(List(List(1, 2), List(3, 4)))
+
+```
+
+----
+
+## Pimp my class pattern for free
+
+```tut:silent
+implicit class AddableOps[A](a: A)(implicit ev: Addable[A]) {
+  def add(b: A): A = ev.add(a, b)
+}
+```
+```tut
+4.add(3)
+List("foo", "bar").add(List("yep"))
+```
 
 ---
 
@@ -138,197 +248,6 @@ incr(Some(4.0): Option[Double])
 
 ---
 
-## Why type classes?
-
-Let's work through an example.
-
-Common question in Scala:
-
->I have a type hierarchy … how do I declare a supertype method that returns the “current” type?
-
-Largely based on this [blog post](http://tpolecat.github.io/2015/04/29/f-bounds.html).
-
-----
-
-## Reformulation
-
-Given a trait `Pet`,
-> for any expression x with some type `A <: Pet`, ensure that `x.renamed(...)` also has type `A`. To be clear: this is a static guarantee that we want, not a runtime property.
-
----
-
-## First attempt: subtyping
-
-```tut:silent
-trait Pet {
-  def name: String
-  def renamed(newName: String): Pet
-}
-
-case class Fish(name: String, age: Int) extends Pet {
-  def renamed(newName: String): Fish = copy(name = newName)
-}
-```
-```tut
-val a = Fish("Jimmy", 2)
-val b = a.renamed("Bob")
-```
-
-----
-
-## Oops
-
-```tut:fail
-def doctor[A <: Pet](a: A): A = a.renamed(a.name + ", PhD")
-```
-
-----
-
-## Oops #2
-
-```tut:silent
-case class Kitty(name: String) extends Pet {
-  def renamed(newName: String): Fish = new Fish(newName, 42) // oops
-}
-```
-
----
-
-## Second attempt: F-bounded type
-
-```tut:silent
-trait Pet[A <: Pet[A]] {
-  def name: String
-  def renamed(newName: String): A
-}
-
-case class Fish(name: String, age: Int) extends Pet[Fish] {
-  def renamed(newName: String) = copy(name = newName)
-}
-```
-
-----
-
-## First victory
-
-```tut
-def doctor[A <: Pet[A]](a: A): A = a.renamed(a.name + ", PhD")
-val a = Fish("Jimmy", 2)
-doctor(a)
-```
-
-----
-
-## Oops
-
-```tut:silent
-case class Kitty(name: String) extends Pet[Fish] { // oops
-  def renamed(newName: String): Fish = new Fish(newName, 42)
-}
-```
-
-----
-
-## A solution
-
-```tut:silent
-trait Pet[A <: Pet[A]] { this: A => // self-type
-  def name: String
-  def renamed(newName: String): A
-}
-```
-
-```tut:fail
-case class Kitty(name: String) extends Pet[Fish] {
-  def renamed(newName: String): Fish = new Fish(newName, 42)
-}
-```
-
-----
-
-## Oops #2
-
-```tut:silent
-class Mammal(val name: String) extends Pet[Mammal] {
-  def renamed(newName: String) = new Mammal(newName)
-}
-
-class Monkey(name: String) extends Mammal(name)
-```
-```tut:fail
-doctor(new Monkey("Fred"))
-```
-
----
-
-## Third attempt: type class
-
-```tut:reset:silent
-trait Pet {
-  def name: String
-}
-
-trait Rename[A] {
-  def rename(a: A, newName: String): A
-}
-
-implicit class RenameOps[A](a: A)(implicit ev: Rename[A]) {
-  def renamed(newName: String): A = ev.rename(a, newName)
-}
-```
-
-```tut:silent
-object Demo {
-	case class Fish(name: String, age: Int) extends Pet
-
-	object Fish {
-	  implicit val fishRename = new Rename[Fish] {
-	    def rename(a: Fish, newName: String) = a.copy(name = newName)
-	  }
-	}
-}
-```
-
-----
-
-## Basic usage
-
-```tut
-import Demo._
-
-val a = Fish("Jimmy", 42)
-
-val b = a.renamed("Bob")
-```
-
-----
-
-## "Doctor" works
-
-```tut
-def doctor[A <: Pet : Rename](a: A): A = a.renamed(a.name + ", PhD")
-
-doctor(Fish("Jimmy", 42))
-```
-
-----
-
-## No type mess-up
-
-Impossible to create a `Kitty` that returns a `Fish`, or do the `Mammal trick`.
-
----
-
-## Summary
-
-|Solution|Return "current" type statically?|Can user mess up?|Method in signature|
-|:-------|:-------------------:|:---------------:|:-----------------:|
-|Subtyping|no|no|yes|
-|F-bounded polymorphism|yes|yes|yes|
-|Type class|yes|no|no|
-
-----
-
 ## Type class degrades readability
 
 ```tut:silent
@@ -352,7 +271,7 @@ How do you know `Option` is a `Functor`?
 * Not stated in scaladoc
 * Look for the `Functor` implementation
 
-----
+---
 
 ## Libraries
 
