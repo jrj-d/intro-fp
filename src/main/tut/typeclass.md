@@ -116,6 +116,14 @@ def concat[A](ss: List[List[A]]): List[A] = ss.fold(List.empty[A])(_ ::: _)
 
 Let's factorize the commonality.
 
+----
+
+## Requirements
+
+* represent *different* types that behave *similarly* (contract)
+* can add capabilities to existing types (pimp my class pattern)
+* statically checked by compiler
+
 ---
 
 ## First idea: subtyping
@@ -144,40 +152,10 @@ This is the one.
 
 ---
 
-## Pimp my class pattern
-
-```tut:silent
-abstract class Addable[A](val value: A) {
-  def add(x: A): A
-}
-
-implicit def intToAddable(i: Int) = new Addable(i) {
-  def add(x: Int): Int = value + x
-}
-
-implicit def listToAddable[A](l: List[A]) = new Addable(l) {
-  def add(x: List[A]): List[A] = value ++ x
-}
-```
-```tut
-4.add(3)
-List("foo", "bar").add(List("yep"))
-```
-
-----
-
-## Implementation of generic sum
-
-```scala
-def genericSum[A](l: List[A]): A = l.fold(???)((a, b) => a.add(b))
-```
-
----
-
 ## Type class
 
 ```tut:silent
-trait Addable[A] { // type class
+trait Addable[A] { // type class (the contract)
   def add(a: A, b: A): A
   def zero: A
 }
@@ -191,12 +169,11 @@ implicit def addableForList[A] = new Addable[List[A]] { // instance
   def add(a: List[A], b: List[A]): List[A] = a ++ b
   def zero: List[A] = List.empty[A]
 }
-```
 
-----
-
-```tut
 def genericSum[A](l: List[A])(implicit ev: Addable[A]): A = l.fold(ev.zero)(ev.add)
+// ev for evidence
+```
+```tut
 genericSum(List(List("foo", "bar"), List("yep")))
 genericSum(List(List(1, 2), List(3, 4)))
 
