@@ -21,16 +21,6 @@ when presenting functional programming some day.
 
 ---
 
-## Type classes & FP
-
-Monads, functors and other functional concepts are all implemented as type classes, because of:
-* Haskell predominance on the FP scene,
-* expressiveness,
-* pimp-my-class pattern,
-* static guarantees
-
----
-
 ## Type class
 
 > A type class is a type system construct that supports ad hoc polymorphism.
@@ -205,8 +195,10 @@ def genericSum[A](l: List[A])(implicit ev: Addable[A]): A = l.fold(ev.zero)(ev.a
 
 ```tut
 genericSum(List(List("foo", "bar"), List("yep")))
-genericSum(List(List(1, 2), List(3, 4)))
-
+genericSum(List(5, 3, 4))
+```
+```tut:fail
+genericSum(List(5L, 3L, 4L))
 ```
 
 ---
