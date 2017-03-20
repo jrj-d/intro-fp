@@ -203,9 +203,9 @@ import scala.annotation.tailrec
 
 def countNodesRec(tree: Node): Int = {
     @tailrec
-    def rec(nodes: List[Node], acc: Int): Int = nodes match {
-        case Nil => acc
-        case h :: tl => rec(h.children ++ tl, acc + 1)
+    def rec(stack: List[Node], nbNodes: Int): Int = stack match {
+        case Nil => nbNodes
+        case h :: tl => rec(h.children ++ tl, nbNodes + 1)
     }
     rec(List(tree), 0)
 }
@@ -254,10 +254,11 @@ Spark logs show computation order is random.
 
 |FP requires or is facilitated by|FP enables|
 |:-------------------------------|:---------|
-|Immutable data|Lazy evaluation|
-|Higher-order functions|Parallelism|
-|Recursion|(Compiler) reasoning|
-||Readability|
+|Immutable data|Readability|
+|Higher-order functions|(Compiler) reasoning|
+|Recursion|Lazy evaluation|
+||Parallelism|
+||Memoization|
 
 ---
 
@@ -294,7 +295,7 @@ Depending on their properties, they can be functors, applicatives, monads.
 
 <img src="./building-fp/fp-code-reduction.png" height="300">
 
-This third level of abstraction enables massive factorization of code, and sheds new light on the programming process.
+This second level of abstraction enables massive factorization of code, and sheds new light on the programming process.
 
 ---
 
