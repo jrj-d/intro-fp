@@ -122,10 +122,11 @@ Hardware is inherently imperative!
 ## Why FP now?
 
 FP and imperative programming have a parallel history. So why is FP becoming mainstream now?
-* FP is less efficient but that is less a concern today
+* FP is less efficient but that is less of a concern today
 * FP is a natural paradigm for concurrency (see Spark)
 * Some impure functional languages like Scala allow devs to try out FP
-* We can reason and trust FP code, that is good for complex codebases
+* We can reason about FP code, that is good for complex codebases
+* FP + powerful compilers catch many errors at compile-time
 
 ---
 
@@ -256,9 +257,9 @@ Spark logs show computation order is random.
 |:-------------------------------|:---------|
 |Immutable data|Readability|
 |Higher-order functions|(Compiler) reasoning|
-|Recursion|Lazy evaluation|
-||Parallelism|
-||Memoization|
+|Recursion|- Lazy evaluation|
+||- Parallelism|
+||- Memoization|
 
 ---
 
