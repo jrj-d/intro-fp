@@ -6,7 +6,7 @@ version := "0.1.0"
 
 scalaVersion := "2.12.1"
 
-libraryDependencies ++= Seq()
+libraryDependencies ++= Seq("org.typelevel" %% "cats" % "0.9.0")
 
 scalacOptions ++= Seq(
     "-target:jvm-1.8",

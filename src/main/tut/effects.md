@@ -368,7 +368,7 @@ object FlyGenerator {
         for {
             mother <- spawnFly
             father <- spawnFly
-            child <- spawnChild(mother, father)
+            child  <- spawnChild(mother, father)
         } yield (mother, father, child)
 }
 ```
@@ -383,3 +383,212 @@ FlyGenerator.spawnFamily.run
 FlyGenerator.spawnFamily.run(Seed(42))
 FlyGenerator.spawnFamily.get(Seed(42))
 ```
+
+---
+
+## Applications of State
+
+`State` has countless applications.
+When you can't get rid of mutability, `State` is your friend.
+
+---
+
+## Option
+
+```tut:silent
+def relativeDifference(a: Double, b: Double): Option[Double] = a match {
+    case 0 => None
+    case _ => Some((b - a) / a)
+}
+
+def findProductLength(productDB: Map[String, Double], id: String): Option[Double] =
+    productDB.get(id)
+
+def compareLengths(productDB: Map[String, Double],
+                   productA: String, productB: String): Option[Double] =
+    for {
+        lengthA <- findProductLength(productDB, productA)
+        lengthB <- findProductLength(productDB, productB)
+        diff <- relativeDifference(lengthA, lengthB)
+    } yield diff
+```
+
+---
+
+## Sequence
+
+```tut:silent
+for {
+    i <- 0 until 10
+    j <- 0 until 10
+} yield (i, j)
+```
+
+---
+
+## Future
+
+```tut:silent
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
+def hardMath1(x: Double): Future[Double] = Future {
+    Thread.sleep(1000)
+    x * x
+}
+
+def hardMath2(x: Double, y: Double): Future[Double] = Future {
+    Thread.sleep(1000)
+    x + y
+}
+
+for {
+    x <- hardMath1(42.0)
+    y <- hardMath1(13.0)
+    z <- hardMath2(x, y)
+} yield z
+```
+
+---
+
+## Behavioral similarity
+
+Surely there is no similarity of usage between `State`, `Seq`, `Option` and `Future`.
+
+The similarity is in the structure:
+```scala
+    def pure[A](a: A): F[A]
+    def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+    def map[A, B](fa: F[A])(f: A => B): F[B] = flatMap(fa)(a => pure(f(a)))
+```
+
+This structure allows to chain computations, and is called a `Monad`.
+
+---
+
+## Importance
+
+> Similarity = code reuse
+
+---
+
+## Wait for a sequence of computations
+
+```tut:book
+import cats.Monad, cats.instances.all._
+import scala.concurrent.Await, scala.concurrent.duration.Duration
+def hardMath(i: Int) = Future(i)
+val futureList = (0 until 10).map(hardMath).toList
+val listFuture = Monad[Future].sequence(futureList)
+Await.result(listFuture, Duration.Inf)
+```
+
+---
+
+## Fail on a sequence of operations
+
+```tut:book
+def failOnZero(i: Int): Option[Int] = i match {
+    case 0 => None
+    case _ => Some(i)
+}
+val optionList = (0 until 10).map(failOnZero).toList
+val listOption = Monad[Option].sequence(optionList)
+```
+
+---
+
+
+## Rewrite Seed using cats's State
+
+```tut:silent
+import cats.data.State
+
+object SeedBlock { // tut issue
+
+    case class Seed(value: Long) {
+        private def next(bits: Int): (Seed, Int) = {
+            val newSeed = Seed((value * 0x5DEECE66DL + 0xBL) & ((1L << 48) - 1))
+            (newSeed, (newSeed.value >>> (48 - bits)).toInt)
+        }
+
+        def nextBoolean: (Seed, Boolean) = {
+            val (newSeed, bit) = next(1)
+            (newSeed, bit == 0)
+        }
+
+        def nextDouble: (Seed, Double) = {
+            val (newSeed1, leftPart) = next(26)
+            val (newSeed2, rightPart) = newSeed1.next(27)
+            val output = ((leftPart.toLong << 27) + rightPart) * (1.0 / (1L << 53))
+            (newSeed2, output)
+        }
+    }
+
+    object Seed { // only this companion object is new
+        def nextBoolean: State[Seed, Boolean] = State(_.nextBoolean)
+        def nextDouble: State[Seed, Double] = State(_.nextDouble)
+    }
+}
+import SeedBlock._
+```
+
+---
+
+## Rewrite Fly using cats's State
+
+```tut:silent
+
+object FlyGenerator {
+
+    import Seed._
+
+    def spawnFly: State[Seed, Fly] = nextBoolean.map(Fly(_))
+
+    def spawnChild(mother: Fly, father: Fly): State[Seed, Fly] = (mother, father) match {
+        case (Fly(a), Fly(b)) if a == b => State.pure(Fly(a))
+        case (Fly(a), Fly(b)) => nextDouble.map { d =>
+            if(d <= 0.6) Fly(a) else Fly(b)
+        }
+    }
+
+    def spawnFamily: State[Seed, (Fly, Fly, Fly)] =
+        for {
+            mother <- spawnFly
+            father <- spawnFly
+            child  <- spawnChild(mother, father)
+        } yield (mother, father, child)
+}
+```
+
+---
+
+## Create many fly families
+
+```tut:book
+type SeedState[A] = State[Seed, A]
+val stateList = List.fill(10)(FlyGenerator.spawnFamily)
+val listState = Monad[SeedState].sequence(stateList)
+listState.runA(Seed(42)).value
+```
+
+---
+
+## Recap
+
+There is a method `sequence` for all monads!
+
+The implementation is the same for all of them: it is independant of the specific monad.
+
+A new form of code factorization, based on structure.
+
+Having methods `pure` and `flatMap` is sufficient to infer `sequence`.
+Many more in `cats`.
+
+---
+
+## Conclude by mentioning other monads
+## Conclude by mentioning other type classes
+## Mention monad transformer stacks
+
+## Mention laws
