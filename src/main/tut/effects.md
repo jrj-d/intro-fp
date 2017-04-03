@@ -23,7 +23,7 @@
 ## Last lecture in 2 min
 
 FP is cool because:
-* readability
+* readability, ability to reason
 * more compile-time checks
 * lazy evaluation, parallelism, memoization
 
@@ -68,6 +68,8 @@ A boolean gene is passed on to progeny like this:
 |A|A|A|
 |B|B|B|
 |x|y|x with probability 60%|
+
+![Fly](effects/Drosm3.gif)
 
 ---
 
@@ -181,6 +183,18 @@ How to make it pure?
 
 ---
 
+## Imperative code
+
+![Imperative state](effects/imperative-state.png)
+
+---
+
+## Functional code
+
+![Functional state](effects/functional-state.png)
+
+---
+
 ## Pure version of Random
 
 ```tut:silent
@@ -249,13 +263,13 @@ But it doesn't feel right: the code is clumsy.
 
 ## Abstraction time
 
-What is it we do? We pass a state (the seed) throught chained calls to functions of the type `S => (S, A)`.
+What is it we do? We pass a state (the seed) throught chained calls to functions of type `S => (S, A)`.
 Let's wrap those functions.
 
 ```tut:invisible:reset
 case class Fly(gene: Boolean)
 ```
-```tut:silent
+```tut:silent:invisible
 object StateBlock { // tut issue
 
     case class State[S, A](run: S => (S, A)) {
@@ -281,12 +295,33 @@ object StateBlock { // tut issue
 }
 import StateBlock._
 ```
+```scala
+case class State[S, A](run: S => (S, A)) {
+
+    def get(s: S): A = run(s)._2
+
+    def map[B](f: A => B): State[S, B] = State { state =>
+        val (newState, a) = run(state)
+        (newState, f(a))
+    }
+
+    def flatMap[B](f: A => State[S, B]): State[S, B] = State { state =>
+        val (intermediateState, a) = run(state)
+        f(a).run(intermediateState)
+    }
+
+}
+
+object State {
+    def pure[S, A](a: A): State[S, A] = State(s => (s, a))
+}
+```
 
 ---
 
 ## State-powered seed
 
-```tut:silent
+```tut:silent:invisible
 object SeedBlock { // tut issue
 
     case class Seed(value: Long) {
@@ -316,6 +351,31 @@ object SeedBlock { // tut issue
 }
 import SeedBlock._
 ```
+```scala
+case class Seed(value: Long) {
+    private def next(bits: Int): (Seed, Int) = {
+        val newSeed = Seed((value * 0x5DEECE66DL + 0xBL) & ((1L << 48) - 1))
+        (newSeed, (newSeed.value >>> (48 - bits)).toInt)
+    }
+
+    def nextBoolean: (Seed, Boolean) = {
+        val (newSeed, bit) = next(1)
+        (newSeed, bit == 0)
+    }
+
+    def nextDouble: (Seed, Double) = {
+        val (newSeed1, leftPart) = next(26)
+        val (newSeed2, rightPart) = newSeed1.next(27)
+        val output = ((leftPart.toLong << 27) + rightPart) * (1.0 / (1L << 53))
+        (newSeed2, output)
+    }
+}
+
+object Seed { // only this companion object is new
+    def nextBoolean: State[Seed, Boolean] = State(_.nextBoolean)
+    def nextDouble: State[Seed, Double] = State(_.nextDouble)
+}
+```
 
 ---
 
@@ -324,13 +384,11 @@ import SeedBlock._
 ```tut:silent
 object FlyGenerator {
 
-    import Seed._, State._
-
-    def spawnFly: State[Seed, Fly] = nextBoolean.map(Fly(_))
+    def spawnFly: State[Seed, Fly] = Seed.nextBoolean.map(Fly(_))
 
     def spawnChild(mother: Fly, father: Fly): State[Seed, Fly] = (mother, father) match {
-        case (Fly(a), Fly(b)) if a == b => pure(Fly(a))
-        case (Fly(a), Fly(b)) => nextDouble.map { d =>
+        case (Fly(a), Fly(b)) if a == b => State.pure(Fly(a))
+        case (Fly(a), Fly(b)) => Seed.nextDouble.map { d =>
             if(d <= 0.6) Fly(a) else Fly(b)
         }
     }
@@ -353,13 +411,11 @@ object FlyGenerator {
 ```tut:silent
 object FlyGenerator {
 
-    import Seed._, State._
-
-    def spawnFly: State[Seed, Fly] = nextBoolean.map(Fly(_))
+    def spawnFly: State[Seed, Fly] = Seed.nextBoolean.map(Fly(_))
 
     def spawnChild(mother: Fly, father: Fly): State[Seed, Fly] = (mother, father) match {
-        case (Fly(a), Fly(b)) if a == b => pure(Fly(a))
-        case (Fly(a), Fly(b)) => nextDouble.map { d =>
+        case (Fly(a), Fly(b)) if a == b => State.pure(Fly(a))
+        case (Fly(a), Fly(b)) => Seed.nextDouble.map { d =>
             if(d <= 0.6) Fly(a) else Fly(b)
         }
     }
@@ -383,13 +439,6 @@ FlyGenerator.spawnFamily.run
 FlyGenerator.spawnFamily.run(Seed(42))
 FlyGenerator.spawnFamily.get(Seed(42))
 ```
-
----
-
-## Applications of State
-
-`State` has countless applications.
-When you can't get rid of mutability, `State` is your friend.
 
 ---
 
@@ -451,10 +500,9 @@ for {
 
 ---
 
-## Behavioral similarity
+## Here comes the monad
 
 Surely there is no similarity of usage between `State`, `Seq`, `Option` and `Future`.
-
 The similarity is in the structure:
 ```scala
     def pure[A](a: A): F[A]
@@ -464,11 +512,9 @@ The similarity is in the structure:
 
 This structure allows to chain computations, and is called a `Monad`.
 
----
+A `Monad` is a context enriching the enclosed value with more information.
 
-## Importance
-
-> Similarity = code reuse
+Why bother? Code reuse!
 
 ---
 
@@ -501,7 +547,7 @@ val listOption = Monad[Option].sequence(optionList)
 
 ## Rewrite Seed using cats's State
 
-```tut:silent
+```tut:silent:invisible
 import cats.data.State
 
 object SeedBlock { // tut issue
@@ -532,6 +578,33 @@ object SeedBlock { // tut issue
 }
 import SeedBlock._
 ```
+```scala
+import cats.data.State
+
+case class Seed(value: Long) {
+    private def next(bits: Int): (Seed, Int) = {
+        val newSeed = Seed((value * 0x5DEECE66DL + 0xBL) & ((1L << 48) - 1))
+        (newSeed, (newSeed.value >>> (48 - bits)).toInt)
+    }
+
+    def nextBoolean: (Seed, Boolean) = {
+        val (newSeed, bit) = next(1)
+        (newSeed, bit == 0)
+    }
+
+    def nextDouble: (Seed, Double) = {
+        val (newSeed1, leftPart) = next(26)
+        val (newSeed2, rightPart) = newSeed1.next(27)
+        val output = ((leftPart.toLong << 27) + rightPart) * (1.0 / (1L << 53))
+        (newSeed2, output)
+    }
+}
+
+object Seed { // only this companion object is new
+    def nextBoolean: State[Seed, Boolean] = State(_.nextBoolean)
+    def nextDouble: State[Seed, Double] = State(_.nextDouble)
+}
+```
 
 ---
 
@@ -541,13 +614,11 @@ import SeedBlock._
 
 object FlyGenerator {
 
-    import Seed._
-
-    def spawnFly: State[Seed, Fly] = nextBoolean.map(Fly(_))
+    def spawnFly: State[Seed, Fly] = Seed.nextBoolean.map(Fly(_))
 
     def spawnChild(mother: Fly, father: Fly): State[Seed, Fly] = (mother, father) match {
         case (Fly(a), Fly(b)) if a == b => State.pure(Fly(a))
-        case (Fly(a), Fly(b)) => nextDouble.map { d =>
+        case (Fly(a), Fly(b)) => Seed.nextDouble.map { d =>
             if(d <= 0.6) Fly(a) else Fly(b)
         }
     }
@@ -574,21 +645,68 @@ listState.runA(Seed(42)).value
 
 ---
 
-## Recap
+## Sequence is for free
 
-There is a method `sequence` for all monads!
-
-The implementation is the same for all of them: it is independant of the specific monad.
-
-A new form of code factorization, based on structure.
-
-Having methods `pure` and `flatMap` is sufficient to infer `sequence`.
-Many more in `cats`.
+* There is a method `sequence` for all monads!
+* The implementation is the same for all of them: it is independant of the specific monad.
+* A new form of code factorization, based on structure!
 
 ---
 
-## Conclude by mentioning other monads
-## Conclude by mentioning other type classes
-## Mention monad transformer stacks
+## Monad laws
 
-## Mention laws
+Having methods `pure` and `flatMap` is sufficient to infer `sequence`... Almost.
+
+Monad laws for monad `F`:
+```scala
+// Left identity (for all f: A => F[B])
+F.pure(a).flatMap(f) <-> f(a)
+
+// Right identity (for all fa: F[A])
+fa.flatMap(F.pure) <-> fa
+
+// Associativity (for all fa: F[A], f: A => F[B], g: B => F[C])
+fa.flatMap(f).flatMap(g) <-> fa.flatMap(a => f(a).flatMap(g))
+```
+
+---
+
+## Many more monads (chained effects)
+
+|How do I|Answer|
+|:-------|------|
+|perform non-local control flow|`Option`, `Either`, `Try`|
+|access configuration|`Reader`|
+|maintain a state|`State`|
+|perform IO|`Show`|
+|compute in parallel|`Future`|
+|log things|`Writer`|
+|work with multiple values|`Seq`, `Set`, `Stream`, ...|
+
+---
+
+## Many more typeclasses in cats
+
+![Type classes in Cats](effects/cats-classes.png)
+
+---
+
+## How do I combine monads?
+
+This is a hard problem.
+
+Current answer: stack of monad transformers (see Haskell's `mtl` library).
+
+A new contender: free-er monads. But only accepts commutative effects.
+
+---
+
+## Conclusion
+
+* Real-world FP code implies highly abstract constructs
+* Research is going fast: see Haskell FP community
+* Many of those concepts will be familiar to most devs in a few years
+
+---
+
+# Q & A
